@@ -1,0 +1,17 @@
+.{
+    .name = "yo",
+    .version = "0.1.0",
+    .paths = .{
+        "src",
+    },
+    .dependencies = .{
+        .stmicro_stm32 = .{
+            .url = "https://github.com/ZigEmbeddedGroup/stmicro-stm32/archive/237890d49ee795110a63df2c45bdd6f6a0029a72.tar.gz",
+            .hash = "1220960897777f9713fa1055ffdf1fbad1518b2f62bd2f2ae39b887821dbf0781df0",
+        },
+        .microzig = .{
+            .url = "https://github.com/ZigEmbeddedGroup/microzig/archive/2873e9e0b109ce55aab083e56225c783f2b7ff2a.tar.gz",
+            .hash = "122069f22bda4feb48d08b637a2ff5bf14cd0dc5d91936bf20e684d7b2b9b4b2ad55",
+        },
+    },
+}
