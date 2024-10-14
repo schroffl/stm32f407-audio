@@ -5,7 +5,7 @@ table: []const f32,
 
 pub const Phasor = struct {
     /// The sampling rate is fixed to 48kHz, because I don't need it to be configurable.
-    pub const SamplingFrequency = 48_000;
+    pub const SamplingFrequency: f32 = 47991.07142857143;
 
     table_size: f32 = 0,
     step_size: f32 = 0.0,
@@ -21,15 +21,15 @@ pub const Phasor = struct {
         return result;
     }
 
-    pub fn setFrequency(self: *Phasor, frequency: f32) void {
-        self.step_size = @as(f32, self.table_size) * frequency / @as(f32, @floatFromInt(SamplingFrequency));
+    pub inline fn setFrequency(self: *Phasor, frequency: f32) void {
+        self.step_size = @as(f32, self.table_size) * frequency / SamplingFrequency;
     }
 
     pub fn normalizedPosition(self: Phasor) f32 {
         return self.position / self.table_size;
     }
 
-    pub fn advance(self: *Phasor) void {
+    pub inline fn advance(self: *Phasor) void {
         self.position += self.step_size;
 
         if (self.position >= self.table_size) {
@@ -46,19 +46,16 @@ pub fn phasor(self: Self, frequency: f32) Phasor {
 
 /// Sample the wavetable at the given position. The caller is expected to make
 /// sure that the position is not greater than the table length.
-pub fn sample(self: Self, position: f32) f32 {
+pub inline fn sample(self: Self, position: f32) f32 {
     const idx_a = @as(usize, @intFromFloat(@trunc(position))) % self.table.len;
     const idx_b = (idx_a + 1) % self.table.len;
 
     const a = self.table[idx_a];
     const b = self.table[idx_b];
-    _ = b;
 
     const t = position - @trunc(position);
-    _ = t;
 
-    //return a * (1 - t) + b * t;
-    return a;
+    return a * (1 - t) + b * t;
 }
 
 /// Generate a lookup table for a sine with the given amount of samples.
@@ -66,6 +63,8 @@ pub fn sample(self: Self, position: f32) f32 {
 /// assumed to be made at compile time, double precision floating point numbers
 /// are used instead of single floats.
 pub fn generateSine(comptime Size: usize) [Size]f32 {
+    @setEvalBranchQuota(1024 * 1024);
+
     const float_size: f64 = @floatFromInt(Size);
     var out: [Size]f32 = undefined;
 
@@ -83,7 +82,7 @@ pub fn generateSine(comptime Size: usize) [Size]f32 {
 
 /// Generate a lookup table for a square wave with the given amount of samples.
 pub fn generateSquare(comptime Size: usize, comptime harmonics: usize) [Size]f32 {
-    @setEvalBranchQuota(1024 * 1024);
+    @setEvalBranchQuota(1024 * harmonics * 100);
 
     const float_size: f64 = @floatFromInt(Size);
     var out: [Size]f32 = undefined;

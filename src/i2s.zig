@@ -6,22 +6,9 @@ const log = std.log.scoped(.i2s);
 
 // pub var buffer: [1024]u16 align(@sizeOf(u16)) = undefined;
 
-pub var buffer: [512]u16 = undefined;
+const BufferSize = 128;
 
-pub fn floatToInt(comptime T: type, value: f32) T {
-    return switch (@typeInfo(T)) {
-        .Int => blk: {
-            const min = std.math.minInt(T);
-            const max = std.math.maxInt(T);
-
-            const normalized = std.math.clamp(value * 0.5 + 0.5, 0.0, 1.0);
-            const mapped: T = @intFromFloat(normalized * (max - min) + min);
-
-            break :blk mapped;
-        },
-        else => @compileError("Cannot convert float to typ " ++ @typeName(T)),
-    };
-}
+pub var buffer: [BufferSize * 4]u16 align(4) = undefined;
 
 pub fn init() void {
     log.debug("Beginning I2S intialization", .{});
@@ -33,35 +20,6 @@ pub fn init() void {
 
     // I2S clock setup
     {
-        // This is assuming an input frequency of 16 MHz.
-        const PLLM: u6 = 16;
-        const PLLN: u9 = 192;
-        const PLLQ: u4 = 4;
-
-        regs.RCC.PLLCFGR.modify(.{
-            .PLLM0 = (PLLM >> 0) & 1,
-            .PLLM1 = (PLLM >> 1) & 1,
-            .PLLM2 = (PLLM >> 2) & 1,
-            .PLLM3 = (PLLM >> 3) & 1,
-            .PLLM4 = (PLLM >> 4) & 1,
-            .PLLM5 = (PLLM >> 5) & 1,
-
-            .PLLN0 = (PLLN >> 0) & 1,
-            .PLLN1 = (PLLN >> 1) & 1,
-            .PLLN2 = (PLLN >> 2) & 1,
-            .PLLN3 = (PLLN >> 3) & 1,
-            .PLLN4 = (PLLN >> 4) & 1,
-            .PLLN5 = (PLLN >> 5) & 1,
-            .PLLN6 = (PLLN >> 6) & 1,
-            .PLLN7 = (PLLN >> 7) & 1,
-            .PLLN8 = (PLLN >> 8) & 1,
-
-            .PLLQ0 = (PLLQ >> 0) & 1,
-            .PLLQ1 = (PLLQ >> 1) & 1,
-            .PLLQ2 = (PLLQ >> 2) & 1,
-            .PLLQ3 = (PLLQ >> 3) & 1,
-        });
-
         // Set the I2S clock source to PLLI2S
         regs.RCC.CFGR.modify(.{
             .I2SSRC = 0,
@@ -140,14 +98,14 @@ pub fn init() void {
 
         // Configure high-speed for PA4
         regs.GPIOA.OSPEEDR.modify(.{
-            .OSPEEDR4 = 3,
+            .OSPEEDR4 = 0b11,
         });
 
         // Configure high-speed for PC7, PC10 and PC12
         regs.GPIOC.OSPEEDR.modify(.{
-            .OSPEEDR7 = 3,
-            .OSPEEDR10 = 3,
-            .OSPEEDR12 = 3,
+            .OSPEEDR7 = 0b11,
+            .OSPEEDR10 = 0b11,
+            .OSPEEDR12 = 0b11,
         });
     }
 
@@ -190,6 +148,7 @@ pub fn init() void {
             .TEIE = 1, // Transfer error interrupt
             .HTIE = 1, // Half transfer interrupt
             .TCIE = 1, // Transfer complete interrupt
+            .DMEIE = 1, // Direct mode error interrupt
 
             .DIR = 0b01, // Memory to peripheral
 
@@ -203,7 +162,7 @@ pub fn init() void {
             .MSIZE = 0b01,
 
             // TODO Find out what priority level is approriate for this...
-            .PL = 0,
+            .PL = 2,
 
             // Select channel 0 (SPI3_TX)
             .CHSEL = 0,
@@ -243,7 +202,7 @@ pub fn init() void {
         .I2SMOD = 1,
         .I2SCFG = 0b10, // Master mode, transmit
         .I2SSTD = 0b00, // I2S Philips
-        .CKPOL = 1,
+        .CKPOL = 0,
         .DATLEN = 0b00, // 24 bit
         .CHLEN = 0b0, // 32 bit wide
         .PCMSYNC = 0,

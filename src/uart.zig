@@ -10,7 +10,7 @@ const Self = @This();
 
 pub const Options = struct {
     baud: usize = 9600,
-    apb1_clock_speed: usize = 16_000_000,
+    apb1_clock_speed: usize = 42_000_000,
 };
 
 const BufferSize = 4096;
@@ -87,7 +87,7 @@ pub fn handleInterrupt(self: *Self) void {
     // Data was received.
     if (status.RXNE == 1) {
         const value = regs.USART2.DR.read();
-        var char: u8 = @intCast(value.DR);
+        const char: u8 = @intCast(value.DR);
 
         // Write the character to the read buffer
         self.read_buffer.writeItem(char) catch unreachable;
