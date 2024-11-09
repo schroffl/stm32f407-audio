@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) void {
                 .{ .offset = 0x10000000, .length = 64 * KiB, .kind = .ram }, // CCM RAM
             },
             .register_definition = .{
-                .svd = .{ .path = "./STM32F407.svd" },
+                .svd = b.path("./STM32F407.svd"),
             },
         },
     };
@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) void {
         .name = "my-firmware",
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
     });
 
     const asm_step = b.addInstallFile(firmware.artifact.getEmittedAsm(), "my-firmware.s");
