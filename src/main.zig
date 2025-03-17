@@ -19,7 +19,7 @@ var uart: UART = undefined;
 
 var sample_index: usize = 0;
 
-var prng = std.rand.DefaultPrng.init(0);
+var prng = std.Random.DefaultPrng.init(0);
 
 const wavetable = Wavetable{
     .table = Wavetable.generateSine(4096)[0..],
@@ -32,76 +32,10 @@ var modulator = wavetable.phasor(1);
 
 var adc_input = MovingAverage{};
 
-pub const microzig_options = .{
+pub const microzig_options: microzig.Options = .{
     .interrupts = .{
-        .USART2 = .{
-            .C = struct {
-                pub fn USART2() callconv(.C) void {
-                    uart.handleInterrupt();
-                }
-            }.USART2,
-        },
-
-        .DMA1_Stream5 = .{
-            .C = struct {
-                pub fn DMA1_Stream5() callconv(.C) void {
-                    const flags = regs.DMA1.HISR.read();
-
-                    // Toggle an LED for debugging and profiling purposes
-                    regs.GPIOD.BSRR.modify(.{
-                        .BS13 = 1,
-                    });
-
-                    if (flags.TEIF5 == 1) {
-                        @panic("TEIE5 was set");
-                    } else if (flags.DMEIF5 == 1) {
-                        @panic("DMEIF5 was set");
-                    }
-
-                    regs.ADC1.CR2.modify(.{ .SWSTART = 1 });
-
-                    while (true) {
-                        const val = regs.ADC1.SR.read();
-
-                        if (val.EOC == 1) {
-                            break;
-                        }
-                    }
-
-                    const int_value = regs.ADC1.DR.read().DATA;
-                    const max_value = std.math.maxInt(u12);
-
-                    const value_raw = @as(f32, @floatFromInt(int_value)) / max_value;
-                    const value = adc_input.process(value_raw);
-
-                    phasor_left.setFrequency(100 + 4900 * value);
-
-                    // If the half transfer interrupt bit is set, fill the other half
-                    if (flags.HTIF5 == 1 or flags.TCIF5 == 1) {
-                        var full = I2S.buffer[0..];
-                        const out = if (flags.HTIF5 == 1)
-                            full[0 .. full.len / 2]
-                        else
-                            full[full.len / 2 ..];
-
-                        fillAudioBuffer(out);
-                    }
-
-                    // Clear interrupt flags
-                    regs.DMA1.HIFCR.modify(.{
-                        .CTEIF5 = 1,
-                        .CHTIF5 = 1,
-                        .CTCIF5 = 1,
-                        .CDMEIF5 = 1,
-                        .CFEIF5 = 1,
-                    });
-
-                    regs.GPIOD.BSRR.modify(.{
-                        .BR13 = 1,
-                    });
-                }
-            }.DMA1_Stream5,
-        },
+        .USART2 = USART2,
+        .DMA1_Stream5 = DMA1_Stream5,
     },
 
     .log_level = .debug,
@@ -122,6 +56,67 @@ pub const microzig_options = .{
         }
     }.log,
 };
+
+fn USART2() callconv(.C) void {
+    uart.handleInterrupt();
+}
+
+fn DMA1_Stream5() callconv(.C) void {
+    const flags = regs.DMA1.HISR.read();
+
+    // Toggle an LED for debugging and profiling purposes
+    regs.GPIOD.BSRR.modify(.{
+        .BS13 = 1,
+    });
+
+    if (flags.TEIF5 == 1) {
+        @panic("TEIE5 was set");
+    } else if (flags.DMEIF5 == 1) {
+        @panic("DMEIF5 was set");
+    }
+
+    regs.ADC1.CR2.modify(.{ .SWSTART = 1 });
+
+    while (true) {
+        const val = regs.ADC1.SR.read();
+
+        if (val.EOC == 1) {
+            break;
+        }
+    }
+
+    const int_value = regs.ADC1.DR.read().DATA;
+    const max_value = std.math.maxInt(u12);
+
+    const value_raw = @as(f32, @floatFromInt(int_value)) / max_value;
+    const value = adc_input.process(value_raw);
+
+    phasor_left.setFrequency(100 + 4900 * value);
+
+    // If the half transfer interrupt bit is set, fill the other half
+    if (flags.HTIF5 == 1 or flags.TCIF5 == 1) {
+        var full = I2S.buffer[0..];
+        const out = if (flags.HTIF5 == 1)
+            full[0 .. full.len / 2]
+        else
+            full[full.len / 2 ..];
+
+        fillAudioBuffer(out);
+    }
+
+    // Clear interrupt flags
+    regs.DMA1.HIFCR.modify(.{
+        .CTEIF5 = 1,
+        .CHTIF5 = 1,
+        .CTCIF5 = 1,
+        .CDMEIF5 = 1,
+        .CFEIF5 = 1,
+    });
+
+    regs.GPIOD.BSRR.modify(.{
+        .BR13 = 1,
+    });
+}
 
 fn hackyDelay(cycles: usize) void {
     var i: usize = 0;

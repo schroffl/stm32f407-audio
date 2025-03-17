@@ -1,5 +1,6 @@
 .{
-    .name = "stm32f407-audio",
+    .name = .stm32f407_audio,
+    .fingerprint = 0xdf57587d29b548b,
     .version = "0.1.0",
     .paths = .{
         "src",
@@ -10,6 +11,6 @@
         "libs",
     },
     .dependencies = .{
-        .@"microzig/build" = .{ .path = "./libs/microzig/build" },
+        .microzig = .{ .path = "./libs/microzig" },
     },
 }

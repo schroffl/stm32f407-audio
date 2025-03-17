@@ -4,7 +4,7 @@ pub inline fn floatToInt(comptime T: type, value: f32) T {
     const clamp_result = false;
 
     return switch (@typeInfo(T)) {
-        .Int => blk: {
+        .int => blk: {
             const min = std.math.minInt(T);
             const max = std.math.maxInt(T);
 

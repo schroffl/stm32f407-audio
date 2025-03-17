@@ -1,26 +1,30 @@
 const std = @import("std");
-const mz = @import("microzig/build");
+const microzig = @import("microzig");
+const MicroBuild = microzig.MicroBuild(.{});
 
 pub fn build(b: *std.Build) void {
-    const microzig = mz.init(b, .{});
+    const mz_dep = b.dependency("microzig", .{});
+    const mb = MicroBuild.init(b, mz_dep) orelse return;
+
     const optimize = b.standardOptimizeOption(.{
         .preferred_optimize_mode = .ReleaseSmall,
     });
 
-    // Get the compiler to emit FPU instructions
-    const cpu = blk: {
-        var cm4 = mz.cpus.cortex_m4;
-        cm4.target.cpu_features_add.addFeature(@intFromEnum(std.Target.arm.Feature.vfp4));
-
-        break :blk cm4;
+    const target_query = std.Target.Query{
+        .cpu_arch = .thumb,
+        .cpu_model = .{ .explicit = &std.Target.arm.cpu.cortex_m4 },
+        .cpu_features_add = std.Target.arm.featureSet(&.{.vfp4}),
+        .os_tag = .freestanding,
+        .abi = .eabi,
     };
 
     const KiB = 1024;
-    const target = mz.Target{
-        .preferred_format = .elf,
+    const target = microzig.Target{
+        .dep = mz_dep,
+        .preferred_binary_format = .elf,
         .chip = .{
             .name = "STM32F407",
-            .cpu = cpu,
+            .cpu = target_query,
             .memory_regions = &.{
                 .{ .offset = 0x08000000, .length = 1024 * KiB, .kind = .flash },
                 .{ .offset = 0x20000000, .length = 128 * KiB, .kind = .ram },
@@ -32,9 +36,9 @@ pub fn build(b: *std.Build) void {
         },
     };
 
-    const firmware = microzig.add_firmware(b, .{
+    const firmware = mb.add_firmware(.{
         .name = "my-firmware",
-        .target = target,
+        .target = &target,
         .optimize = optimize,
         .root_source_file = b.path("src/main.zig"),
     });
@@ -42,8 +46,8 @@ pub fn build(b: *std.Build) void {
     const asm_step = b.addInstallFile(firmware.artifact.getEmittedAsm(), "my-firmware.s");
     b.getInstallStep().dependOn(&asm_step.step);
 
-    microzig.install_firmware(b, firmware, .{ .format = .elf });
-    microzig.install_firmware(b, firmware, .{ .format = .bin });
+    mb.install_firmware(firmware, .{ .format = .elf });
+    mb.install_firmware(firmware, .{ .format = .bin });
 
     const stflash_path = b.option([]const u8, "st-flash", "The path to the st-flash binary") orelse "st-flash";
     const flash_cmd = b.addSystemCommand(&.{ stflash_path, "--reset", "--connect-under-reset", "write" });
